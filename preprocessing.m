@@ -57,24 +57,30 @@ efficiencyInjection = 0.98; % Conversion efficiency
 tempEnv = 293.15; % Environment temperature (K)    
 
 % STORAGE SYSTEM
-EStorageMax     = 2000.*unit("kWh");
-EStorageMin     = 10.*unit("kWh");
-EStorageInitial = 100.*unit("kWh");   
+EStorageMax     = 5000.*unit("kWh");
+EStorageMin     = 200.*unit("kWh");
+EStorageInitial = 1500.*unit("kWh");   
 
 % sorption system characteristics (silica gel / water)
-ms = 20; % Sorbent mass (kg)
-cps = 920; % Specific heat capacity of sorbent (J/kgK)
-dh_ads = 2.5e6; % Heat of adsorption (J/kg_water)
-UA = 15; % Heat loss coefficient (W/K)
-kLdf = 0.008; % Linear driving force coefficient (1/s)
+ms = massGel;          % Sorbent mass (kg), based on full tank volume
+cps = 920;             % Specific heat capacity of sorbent (J/kgK)
+dh_ads = 2.5e6;        % Heat of adsorption (J/kg_water)
+UA = 15;               % Heat loss coefficient (W/K)
+kLdf = 0.008;          % Linear driving force coefficient (1/s) % Linear driving force coefficient (1/s)
 
 % Dubinin-Astakhov model
 X0 = 0.35; % Maximum loading (kg water/kg sorbent)
 E = 6000; % Characteristic adsorption energy (J/mol)
 n = 1.5; % Exponent (-)
 pv = 1200; % Vapor pressure (Pa)
-Tref = 373;
-Xref = 0.75;
+% Reference state for stored-energy calculation:
+% fully loaded sorbent at ambient temperature is treated as empty storage.
+Tref = tempEnv;
+Xref = 0.05;
+
+XStorageInitial = 0.05;
+TStorageInitial = tempEnv;
+TStorageInitial = Tref;
 
 % EXTRACTION SYSTEM
 alphaLoss = 0.1; % Dissipation coefficient
