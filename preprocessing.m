@@ -97,6 +97,31 @@ kPipe = 0.3; % Pipe material (PEX) thermal conductivity (W/mK)
 emissivitySurfacePipe = 0.9;
 Tfluid = 353.15; % Temperature of the fluid inside the pipe (K)
 
+% Data-based daylight window from supply file
+Sunrise = zeros(365,1);
+Sunset  = zeros(365,1);
 
+threshold = 0.05 * max(Supply.Data); % 5% of max supply
 
-%nima is the gay one
+for d = 1:365
+
+    idx = floor(Supply.Time / 86400) + 1 == d;
+
+    tDay = Supply.Time(idx);
+    pDay = Supply.Data(idx);
+
+    active = pDay > threshold;
+
+    if any(active)
+        Sunrise(d) = mod(tDay(find(active,1,'first')), 86400) / 3600;
+        Sunset(d)  = mod(tDay(find(active,1,'last')), 86400) / 3600;
+    else
+        Sunrise(d) = 12;
+        Sunset(d)  = 12;
+    end
+end
+
+dayTime = ((0:364)' * 86400);   % seconds
+
+SunriseSignal = timeseries(Sunrise, dayTime);
+SunsetSignal  = timeseries(Sunset, dayTime);
