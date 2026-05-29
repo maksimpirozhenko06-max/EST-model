@@ -96,3 +96,6 @@ pipeLength = 10; % Length of pipe from extraction to apartment
 kPipe = 0.3; % Pipe material (PEX) thermal conductivity (W/mK)
 emissivitySurfacePipe = 0.9;
 Tfluid = 353.15; % Temperature of the fluid inside the pipe (K)
+
+
+%nima is the gay one
