@@ -125,3 +125,9 @@ dayTime = ((0:364)' * 86400);   % seconds
 
 SunriseSignal = timeseries(Sunrise, dayTime);
 SunsetSignal  = timeseries(Sunset, dayTime);
+
+%% Battery Settings
+
+EBatteryMax     = 5000.*unit("kWh");
+EBatteryMin     = 200.*unit("kWh");
+EBattreyInitial = 1500.*unit("kWh");   
