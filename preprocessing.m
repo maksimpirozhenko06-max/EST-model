@@ -130,4 +130,4 @@ SunsetSignal  = timeseries(Sunset, dayTime);
 
 EBatteryMax     = 5000.*unit("kWh");
 EBatteryMin     = 200.*unit("kWh");
-EBattreyInitial = 1500.*unit("kWh");   
+EBatteryInitial = 1500.*unit("kWh");
