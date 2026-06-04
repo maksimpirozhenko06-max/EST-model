@@ -236,3 +236,5 @@ $$E = (e^{-b(t-\tau)} -1) \frac{d}{b} P_{\rm demand} + E_{\rm store} e^{-b(t-\ta
 Comparison of this exact solution with the Simulink model conveys that the model solves the model equations as intended:
 
 ![Run results 2](images/charge.png)
+
+WAZZZAAAAAp
