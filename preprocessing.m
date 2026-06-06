@@ -23,7 +23,7 @@ Demand = loadDemandData(demandFile, timeUnit, demandUnit);
 % -------------------------------------------------------------------------
 
 dtController = 900;          % [s] controller/storage time step
-deltat       = 900*unit("s");
+deltat       = 900;          % [s] fixed simulation time step
 
 stopt = min([Supply.Timeinfo.End, Demand.Timeinfo.End]);
 
@@ -130,9 +130,9 @@ XStorageInitial = max(0.0, min(X0, XStorageInitial));
 %  7. Battery storage parameters
 % -------------------------------------------------------------------------
 
-EBatteryMax     = 5000 * 3.6e6;      % [J] 5000 kWh
-EBatteryMin     = 200  * 3.6e6;      % [J] 200 kWh
-EBatteryInitial = 1500 * 3.6e6;      % [J] 1500 kWh
+EBatteryMax     = 100 * 3.6e6;      % [J] 5000 kWh
+EBatteryMin     = 0  * 3.6e6;      % [J] 200 kWh
+EBatteryInitial = 50 * 3.6e6;      % [J] 1500 kWh
 
 efficiencyBatteryCharge = 0.95;
 etaBatteryDischarge     = 0.95;
