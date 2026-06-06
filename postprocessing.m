@@ -54,7 +54,13 @@ end
 
 % Storage charging powers
 PtoSorptionInjection = getSignal(["PtoSorptionInjection", "PtoInjection"], nSamples, 0); % [kW]
+PfromSorptionInjection = getSignal("PfromSorptionInjection", nSamples, NaN);             % [kW]
 PtoBatteryInjection  = getSignal("PtoBatteryInjection", nSamples, 0);                    % [kW]
+
+% If useful sorption injection output is not logged, fall back to controller command.
+if all(isnan(PfromSorptionInjection))
+    PfromSorptionInjection = PtoSorptionInjection;
+end
 
 % Storage discharge commands
 PfromSorptionStorage = getSignal(["PfromSorptionStorage", "PfromExtraction"], nSamples, 0); % [kW]
@@ -89,6 +95,34 @@ else
 end
 
 %% ------------------------------------------------------------------------
+%  2B. Sorption stored energy from energy accounting
+% -------------------------------------------------------------------------
+
+% This is a system-level state of charge for sorption storage.
+% It avoids the square-wave behaviour caused by using temperature/loading
+% directly from the sorption physics block.
+
+dt_seconds = [0; diff(t)];
+
+PsorptionCharge_kW    = PfromSorptionInjection(:);   % useful power into sorption storage
+PsorptionDischarge_kW = PfromSorptionStorage(:);      % raw power removed from sorption storage
+
+% For now, do not subtract DStorage here.
+% DStorage can contain thermal tank loss and may distort the storage graph.
+PsorptionLoss_kW = zeros(nSamples, 1);
+
+dE_sorption_kWh = ...
+    (PsorptionCharge_kW ...
+    - PsorptionDischarge_kW ...
+    - PsorptionLoss_kW) .* dt_seconds / 3600;
+
+E_sorption_graph_kWh = EStorageInitial / J_per_kWh + cumsum(dE_sorption_kWh);
+
+% Clamp to storage limits
+E_sorption_graph_kWh = max(EStorageMin / J_per_kWh, ...
+    min(EStorageMax / J_per_kWh, E_sorption_graph_kWh));
+
+%% ------------------------------------------------------------------------
 %  3. Main overview plots
 % -------------------------------------------------------------------------
 
@@ -111,13 +145,12 @@ legend("Supply after transport", "Demand", "Location", "best");
 nexttile;
 hold on;
 
-if ~all(isnan(ESorption))
-    plot(tDays, ESorption / J_per_kWh, "LineWidth", 1.2);
-end
+plot(tDays, E_sorption_graph_kWh, "LineWidth", 1.2);
 
 if ~all(isnan(EBattery))
     plot(tDays, EBattery / J_per_kWh, "LineWidth", 1.2);
 end
+
 
 grid on;
 title("Stored energy");
@@ -285,9 +318,7 @@ if ~all(isnan(EBattery))
     plot(tDays, EBattery / J_per_kWh, "LineWidth", 1.2);
 end
 
-if ~all(isnan(ESorption))
-    plot(tDays, ESorption / J_per_kWh, "LineWidth", 1.2);
-end
+plot(tDays, E_sorption_graph_kWh, "LineWidth", 1.2);
 
 grid on;
 title("Battery and sorption storage comparison");

@@ -86,8 +86,8 @@ efficiencyInjection = 0.98;          % sorption charging conversion efficiency
 % Sorption energy limits
 % Stored energy is in J.
 EStorageMax     = 5000 * 3.6e6;      % [J] 5000 kWh
-EStorageMin     = 200  * 3.6e6;      % [J] 200 kWh
-EStorageInitial = 1500 * 3.6e6;      % [J] 1500 kWh
+EStorageMin     = 100  * 3.6e6;      % [J] 200 kWh
+EStorageInitial = 1200 * 3.6e6;      % [J] 1500 kWh
 
 % Sorption material properties
 ms     = massGel;                    % [kg] sorbent mass
@@ -130,9 +130,9 @@ XStorageInitial = max(0.0, min(X0, XStorageInitial));
 %  7. Battery storage parameters
 % -------------------------------------------------------------------------
 
-EBatteryMax     = 100 * 3.6e6;      % [J] 5000 kWh
-EBatteryMin     = 0  * 3.6e6;      % [J] 200 kWh
-EBatteryInitial = 50 * 3.6e6;      % [J] 1500 kWh
+EBatteryMax     = 200 * 3.6e6;      % [J] 200 kWh
+EBatteryMin     = 0  * 3.6e6;      % [J] 0 kWh
+EBatteryInitial = 200 * 3.6e6;      % [J] 50 kWh
 
 efficiencyBatteryCharge = 0.95;
 etaBatteryDischarge     = 0.95;
@@ -162,7 +162,7 @@ heatingSeasonEndDay   = 120;         % Apr 30
 %  9. Extraction parameters
 % -------------------------------------------------------------------------
 
-alphaLoss = 0.1;                     % [-] sorption extraction loss
+alphaLoss = 0.15;                     % [-] sorption extraction loss
 etaSorptionExtraction = 1 - alphaLoss;
 
 %% ------------------------------------------------------------------------
