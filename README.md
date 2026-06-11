@@ -1,240 +1,88 @@
-# EST-model
-This project contains the *Simulink model* for the **Energy Storage and Transport (EST)** project. This Simulink model contains a simplified version of a real-life energy storage and transport system, which describes the flow of energy in such a system. Supporting MATLAB files are provided which can be used to predefine parameters and to post-process data into figures.
-
-## Getting started
-To install the simulink model, just clone or download the entire repository (under `<> Code`) and open [EST.slx](EST.slx). If you download the zip file for the repository, make sure to properly unzip it, as otherwise errors occur.
-
-### Version requirements
-The simulink model [EST.slx](EST.slx) requires **Matlab R2022b** or newer, with the **Simulink** toolbox installed. Older, untested, versions are available in the [versions](versions/) directory. In order to run an older version, copy the Simulink file corresponding to your version into the main directory and make sure to restart both MATLAB and Simulink before running it.
-
-### Overview of files and directory structure
-* [EST.slx](EST.slx): Main file, containing the runnable Simulink model of the EST system.
-* [preprocessing.m](preprocessing.m): Matlab script to define the model parameters and to read the supply and demand data files. Automatically executed by the Simulink model before running.
-* [postprocessing.m](postprocessing.m): Matlab script to plot the model results. Automatically executed by the Simulink model after running.
-* [data directory](data/): Directory from which the supply and demand data is to be read. By default, the directory contains example files for a storage system in a household with solar panels (see [Running the model](#running-the-model)), and the files for a charge/discharge cycle (see [Charge/discharge cycle](#chargedischarge-cycle)).
-
-## Running the model
-To run the model, open [EST.slx](EST.slx) and click the run button:
-![Run model](images/runmodel.png)
-After running is complete, the following output is displayed:
-![Run results 1](images/runoutput1.png)
-![Run results 2](images/runoutput2.png)
-
-> [!CAUTION]
-> When the code gives an error, carefully check the following:
-> - Did you install the complete repository? Only downloading [EST.slx](EST.slx) does not work.
-> - If you downloaded the zip file, did you unpack it?
-> - Is the Matlab current working directory set to the right folder, that is, the folder in which [EST.slx](EST.slx) is placed. 
-
-The results displayed above correspond to the default model settings, as configured in the [preprocessing.m](preprocessing.m) Matlab script:
-
-```matlab
-% Pre-processing script for the EST Simulink model. This script is invoked
-% before the Simulink model starts running (initFcn callback function).
-
-%% Load the supply and demand data
-
-timeUnit   = 's';
-
-supplyFile = "SolarExample_supply.csv";
-supplyUnit = "kW";
-
-% load the supply data
-Supply = loadSupplyData(supplyFile, timeUnit, supplyUnit);
-
-demandFile = "SolarExample_demand.csv";
-demandUnit = "kW";
-
-% load the demand data
-Demand = loadDemandData(demandFile, timeUnit, demandUnit);
-
-%% Simulation settings
-
-deltat = 5*unit("min");
-stopt  = min([Supply.Timeinfo.End, Demand.Timeinfo.End]);
-
-%% System parameters
-
-% transport from supply
-aSupplyTransport = 0.01; % Dissipation coefficient
-
-% injection system
-aInjection = 0.1; % Dissipation coefficient
-
-% storage system
-EStorageMax     = 10.*unit("kWh"); % Maximum energy
-EStorageMin     = 0.0*unit("J");   % Minimum energy
-EStorageInitial = 2.0*unit("kWh"); % Initial energy
-bStorage        = 1e-6/unit("s");  % Storage dissipation coefficient
-
-% extraction system
-aExtraction = 0.1; % Dissipation coefficient
-
-% transport to demand
-aDemandTransport = 0.01; % Dissipation coefficient
-```
-
-## Theory and implementation
-The EST system transports energy from the `Supply` to the `Demand`, both represented by a `block` in the Simulink model, possibly storing the energy in between. The EST model consists of five components (`blocks`), in the order of the energy flow:
-1. `Transport from supply`: transports the energy from the supply site to the storage site.
-2. `Injection`: inserts energy into the storage container.
-3. `Storage`: container in which the energy is stored.
-4. `Extraction`: extracts energy from the storage container.
-5. `Transport to demand`: transports the energy from the storage site to the demand site.
-
-The flow of energy between these components is managed by a `controller`, which ensures that the electrical power balance is satisfied through load balancing (buying or selling of energy).
-
-Each subsystem in the model can be described by
-
-$$\dot{E}=P_{\rm in}-P_{\rm out}-D$$
-
-where $\dot{E}$ is the change of total energy in the subsystem, $P_{\rm in}$ the incoming power, $P_{\rm out}$ the outgoing power and $D$ the rate of dissipation in the subsystem. 
-
-For the `Transport from supply`, `Injection`, `Extraction`and `Transport to demand` components, the EST model assumes $\dot{E}=0$ and
-
-$$D= a P_{\rm in}$$
-
-where $a$ [-] is the subsystem dissipation coefficients. It then follows that
-
-$$P_{\rm out} = P_{\rm in} - D = (1-a) P_{\rm in}$$
-
-These relations are implemented in Simulink through `Matlab function blocks`, for example for the `Injection` component:
-
-```matlab
-function [PfromInjection, DInjection] = injection(PtoInjection, aInjection)
-    DInjection = aInjection * PtoInjection;
-    PfromInjection = PtoInjection - DInjection;
-```
-
-Note that $P_{\rm in}$ and $P_{\rm out}$ are here represented by `PtoInjection` and `PfromInjection`, respectively. The `Transport from supply` component follows the same implementation:
-
-```matlab
-function [PfromSupplyTransport, DSupplyTransport] = supplyTransport(PtoSupplyTransport, aSupplyTransport)
-    DSupplyTransport = aSupplyTransport * PtoSupplyTransport;
-    PfromSupplyTransport = PtoSupplyTransport - DSupplyTransport;
-```
-
-When $P_{\rm out}$ serves as the input of the system, for example for the `Extraction` component, the dissipation and power functions must be rewritten to
-
-$$D = \frac{a}{1-a} P_{\rm out}$$
-
-and
-
-$$P_{\rm in} = P_{\rm out} + D = \frac{1}{1-a} P_{\rm out}$$
-
-The implementation then follows as:
-
-```matlab
-function [PtoExtraction, DExtraction] = extraction(PfromExtraction, aExtraction)
-    DExtraction = aExtraction / (1-aExtraction) * PfromExtraction;
-    PtoExtraction = PfromExtraction + DExtraction;
-```
-
-Similarly, for the `Transport to demand` component, the implementation reads:
-
-```matlab
-function [PtoDemandTransport, DDemandTransport] = demandTransport(PfromDemandTransport, aDemandTransport)
-    DDemandTransport = aDemandTransport / (1-aDemandTransport) * PfromDemandTransport;
-    PtoDemandTransport = PfromDemandTransport + DDemandTransport;
-```
-
-For the `Storage` component, the dissipation model
-
-$$D= b (E - E_{\rm min})$$
-
-is assumed, where $E_{\rm min}$ is the minimum energy capacity of the system (by default set to 0) and $b$ [1/s] is the storage dissipation coefficient. This model essential states that the dissipation is proportional to the amount of energy stored.
-
-Substitution of this dissipation model in the power balance results in the differential equation (DE)
-
-$$\dot{E} + b E =P_{\rm in}-P_{\rm out}+b E_{\rm min}$$
-
-In the Simulink model, this differential equation is integrated explicitly, meaning that $\dot{E}$ is computed based on the energy $E$ in the previous time step:
-
-```matlab
-function [DStorage, EdotStorage]= Storage(PtoStorage, PfromStorage, bStorage, aStorage , EStorageMin, EStorage)
-    DStorage = bStorage * (EStorage-EStorageMin);
-    EdotStorage = PtoStorage - PfromStorage - DStorage;
-```
-
-## Charge/discharge cycle
-To illustrate the theory behind the model, we consider a single charge/discharge cycle. In this cycle, the energy system is charged for $T_{\rm charge}=3$ [h] with a power of $P_{\rm charge}=15$ [kW], after which the energy is stored for $T_{\rm store}=8$ [h], until the system is discharged for $T_{\rm discharge}=1$ [h] with a power of $P_{\rm discharge}=5$ [kW]. The corresponding supply and demand signals are stored in the [CycleExample_supply.csv](CycleExample_supply.csv) and [CycleExample_demand.csv](CycleExample_supply.csv) files. To read these files, the [preprocessing.m](preprocessing.m) file is configured as:
-
-```matlab
-% Pre-processing script for the EST Simulink model. This script is invoked
-% before the Simulink model starts running (initFcn callback function).
-
-%% Load the supply and demand data
-
-timeUnit   = 's';
-
-supplyFile = "CycleExample_supply.csv";
-supplyUnit = "kW";
-
-% load the supply data
-Supply = loadSupplyData(supplyFile, timeUnit, supplyUnit);
-
-demandFile = "CycleExample_demand.csv";
-demandUnit = "kW";
-
-% load the demand data
-Demand = loadDemandData(demandFile, timeUnit, demandUnit);
-```
-The time step size, `deltat`, used in the simulation is also specified in [preprocessing.m](preprocessing.m) and the final simulation time, `stopt`, is determined from the loaded time series:
-```matlab
-%% Simulation settings
-
-deltat = 5*unit("min");
-stopt  = min([Supply.Timeinfo.End, Demand.Timeinfo.End]);
-```
-Finally, the dissipation coefficients are given by:
-```matlab
-%% System parameters
-
-% transport from supply
-aSupplyTransport = 0.01; % Dissipation coefficient
-
-% injection system
-aInjection = 0.1; % Dissipation coefficient
-
-% storage system
-EStorageMax     = 40*unit("kWh"); % Maximum energy
-EStorageMin     = 0.0*unit("J");  % Minimum energy
-EStorageInitial = 0.0*unit("J");  % Initial energy
-bStorage        = 5e-5/unit('s'); % Storage dissipation coefficient
-
-% extraction system
-aExtraction = 0.1; % Dissipation coefficient
-
-% transport to demand
-aDemandTransport = 0.01; % Dissipation coefficient
-```
-
-For this particular scenario, an exact solution to the model exists, which can be used to **verify the Simulink implementation**. During charging, the power balance differential equation for the storage container reads
-
-$$\dot{E} + b E = c P_{\rm supply}$$
-
-where $c = (1-a_{\rm supplyTransport}) (1-a_{\rm Injection})$. With the initial condition $E(0)=0$, the solution is given by
-
-$$E = (1 - e^{-bt}) \frac{c}{b} P_{\rm supply} \qquad 0 \leq t < T_{\rm charge}$$
-
-During storage, the power balance reads
-
-$$\dot{E} + b E = 0$$
-
-with the initial condition $E(T_{\rm charge}) = (1 - e^{-bT_{\rm charge}}) \frac{c}{b} P_{\rm supply} := E_{\rm charge}$. The solution during storage is given by
-
-$$E = E_{\rm charge} e^{-b(t - T_{\rm charge})} \qquad T_{\rm charge} \leq t \leq \tau$$
-
-where $\tau = T_{\rm charge} + T_{\rm store}$. Finally, during discharging, the differential equation reads
-
-$$\dot{E} + b E = -d P_{\rm demand}$$
-
-where $d = (1-a_{\rm Extraction})^{-1}(1-a_{\rm demandTransport})^{-1}$. With the initial condition $E(\tau)=E_{\rm charge} e^{-b T_{\rm store}} := E_{\rm store}$, the solution is given by
-
-$$E = (e^{-b(t-\tau)} -1) \frac{d}{b} P_{\rm demand} + E_{\rm store} e^{-b(t-\tau)} \qquad \tau \leq t \leq \tau + T_{\rm discharge}$$
-
-Comparison of this exact solution with the Simulink model conveys that the model solves the model equations as intended:
-
-![Run results 2](images/charge.png)
-
-WAZZZAAAAAp
+\documentclass{article}
+\usepackage{graphicx}
+\usepackage[most]{tcolorbox} % Added for custom instruction boxes
+\usepackage{fancyhdr} % Added for header/footer commands
+\usepackage{float}
+% Define the custom \instruction command
+\newcommand{\instruction}[1]{
+    \begin{tcolorbox}[
+        colback=blue!5!white,      % Light blue background
+        colframe=blue!75!black,    % Dark blue frame
+        title=Instruction,         % Title of the box
+        fonttitle=\bfseries,       % Bold title font
+        arc=2mm,                   % Rounded corners
+        boxrule=0.5pt,             % Thickness of the frame
+        left=2mm, right=2mm, top=2mm, bottom=2mm, % Padding
+        fontupper=\small\itshape   % Make the text small and italic
+    ]
+        #1
+    \end{tcolorbox}
+}
+
+\title{SSA6}
+\author{Maksim Pirozhenko}
+\date{June 2026}
+
+\begin{document}
+\maketitle
+
+\section{Introduction}
+The goal of this SSA is to perform the whole validation part of our experiment, including an explanation of the experimental setup 
+\section{Future Steps}
+The last section needs to be written down, and the current first 2 sections' drafts also have to be finished\\
+Bibliography(!!!)\\
+Decide on whether to keep or not the 3RD DHT sensor on our schematics(we are not using it in the experiment)\\
+Decide whether to add or not the argument on how it could have been done better (Like finding E ourselves)\\
+Write the Validation of the D-A equation, since currently the $X_{eq}$ is being found differently(maybe proving E that way)
+\section{Conclusion}
+The whole SSA follows the same structure as the report
+Starting from the experimental definition, going through the results of the experiment, and going to the system scale validation(the one I haven't written yet)
+and thus no conclusion
+\section{Problems}
+I was struggling to find the exact formulas from the SSAs, so I had to extract them from the Simulink code directly, thus they might or might not have different names\\
+I was really low on time when writing this SSA, so some sections are in a very early draft version for a report and need to be clarified and refined(sorry)\\
+\newpage
+\section{Model validation}
+\lhead{Reflection} % section header
+
+\subsection{Lab-scale validation experiment}
+\instruction{In this section, you describe the lab-scale validation experiment for a physical law of relevance to the real-world EST system. You discuss the assumptions underlying this physical law with support of scientific literature (including references) and present a theoretical prediction (i.e., an equation relating two or more variables). Include a picture and schematic of your experiment. Max 300 words.}
+There are two physical laws explicitly used in our EST model:$$\frac{dX}{dt} = k_{Ldf}(X_{eq} - X)$$where $X_{eq}$ is defined as the equilibrium uptake ratio of the silica at a given temperature and vapor pressure (e.g., at $67^\circ\text{C}$ and ambient humidity, the mass of the water stored inside the silica equates to $14\%$ of the dry silica mass itself). This theoretical limit is calculated using the Dubinin-Astakhov (D-A) Isotherm for thermodynamic equilibrium:$$X_{eq} = X_0 \exp\left(-\left(\frac{RT}{E}\ln\left(\frac{p_{sat}}{p_v}\right)\right)^n\right)$$
+These equations feature multiple unknown values that we are unable to find, that can not be found unfortunately:(cause you guys kept giving us faulty sensors)
+First, the $X_0$ value representing the total absorption ratio of the silica, to find this value, the silica needs to be completely dried up at around 120-150 degrees Celsius \\
+The second value $E$ represnts Characteristic Energy of Adsorption of the silica gel. This value could theoretically be found by performing an experiment and finding $X_{eq}$ at different temperatures, and by transforming the equation to solve for E 
+\subsection{Experimental Setup}
+Our experimental setup has the goal of tracking the change of the mass ($\frac{dX}{dt}$) with the calibrated HX711 load cell, and the temperature of the silica for the D-A equation to find $X_{eq}$.To find the $p_v$, we use the formula :$$p_v = p_{sat}(T_{lab}) \times \text{RH}$$For $T_{lab}$, we use the value of the external DHT22 sensor located outside of the capsule. From the same sensor, we take the value for the relative humidity (Kinda a lie because we forgot to take it, but we can just use a regular value for the relative humidity inside the buildings). The $T$ is the temperature of the inside of the silica and is being taken from the internal DHT22 sensor (middle). Importantly, we also measure the mass of the empty silica reactor prior to experiment to shift mass data later on
+
+\subsubsection{Sensors Used}
+\textbf{Calibrated HX711 Load Cell}: Used to track the change of the mass of the silica over time ($\frac{dX}{dt}$).\\
+\textbf{External DHT22 Sensor(bottom)}: Located outside the capsule. Used to get the $T_{lab}$ and the relative humidity to calculate the vapor pressure ($p_v$).\\
+\textbf{Internal DHT22 Sensor (top)}: Located in the middle of the silica. Used to get the internal temperature ($T$) needed for the D-A equation.
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=1\linewidth]{EST schematics.png}
+    \caption{Circuitry}
+    \label{fig:placeholder}
+\end{figure}
+\subsection{Lab-scale validation results}
+\instruction{In this section, you present the results of your validation experiment using figures that provide insight into the quality of the experimental data (e.g., using error bars). You must also compare the prediction by the theoretical physical law to the experimental results and provide an interpretation of the similarities and differences. Use at most 3 figures. Max 300 words.}
+After performing the experiment and plotting the data, the following graphs were obtained for the temperature. The temperature sensor was capped at the last reasonable reading to prevent it since it was returning unrealistic values(e.g., $125 C \circ$ or $-60 C \circ$) when overheated(we could've prevented that by drying the silica at a much lower temperature, but it is what it is now). Also, the mass default filtering function from MATLAB was used, as well as the special function to neglect faulty readings. (filloutliers)
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=1.25\linewidth]{image.png}
+    \caption{Primary data from the experiment}
+    \label{fig:placeholder}
+\end{figure}
+To find the value of $X_{eq}$, the weight history was implemented, setting that if the mass has not changed by more than 5 g over a course of 5 minutes, it can be stated that $X_{eq}$ has been reached. This happens after drying for around 15 minutes(892 seconds), and the mass is $\approx 189 g$ by using the absorption rate gel at the room temperature to be 40 percent the $X_{eq}=0.2307 kg/kg$ water per seilca ratio(or 23 percent)), by checking the drying rate at its peak of $-0.08 g/s$
+At 446 seconds, the ratio $X$ based on \ref{fig:placeholder} is $0.31 kg/kg$(31 percent) so the k value is $k_{Ldf} \approx 0.00667 \text{ s}^{-1}$
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.75\linewidth]{Dxdt.png}
+    \caption{dX/dt}
+    \label{fig:rate}
+\end{figure}
+
+\subsection{System-scale validation}
+\instruction{In this section, you discuss the impact of the scale difference between the lab experiment and the real system. Using dimensionless numbers where appropriate, you discuss the anticipated modeling errors at the system scale qualitatively and quantitatively. You also reflect upon the capabilities and limitations of the Simulink model, identify critical model components, and state recommendations for improvement. Max 300 words.}
+This part I haven't written yet
+\end{document}
